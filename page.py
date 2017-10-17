@@ -1,17 +1,17 @@
+import time
+
 from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import WebDriverException
-from selenium.webdriver.support import expected_conditions
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+
 from element import BasePageElement
 from locators import SearchPageLocators
-import time
+
 
 class TextElement(BasePageElement):
     def __init__(self, *locator):
         self.locator = locator
+
 
 class BasePage(object):
     """Base class to initialize the base page that will be called from all pages"""
@@ -30,17 +30,14 @@ class BasePage(object):
             self.driver.execute_script("arguments[0].setAttribute('style', arguments[1]);", element,
                                        original_style)
 
-
     def check_object_exists(self, *locator):
         """returns true of the object exists, false if it doesn't"""
-        time.sleep(1) #give it time to load the object
+        time.sleep(1)   # give it time to load the object
         try:
-            #lambda driver: self.driver.find_element(*locator)
             self.driver.find_element(*locator)
         except NoSuchElementException:
             return False
         return True
-
 
     def click_object(self, *locator):
         """clicks on object"""
@@ -67,8 +64,8 @@ class BasePage(object):
             lambda driver: self.driver.find_element(*locator)
         )
         element = self.driver.find_element(*locator)
-        actionChains = ActionChains(self.driver)
-        actionChains.double_click(element).perform()
+        action_chains = ActionChains(self.driver)
+        action_chains.double_click(element).perform()
 
     def click_object_at_location(self, xoffset, yoffset, *locator):
         """clicks object at x, y offset"""
@@ -76,17 +73,17 @@ class BasePage(object):
             lambda driver: self.driver.find_element(*locator)
         )
         element = self.driver.find_element(*locator)
-        actionChains = ActionChains(self.driver)
-        actionChains.move_to_element_with_offset(element, xoffset, yoffset).click().perform()
+        action_chains = ActionChains(self.driver)
+        action_chains.move_to_element_with_offset(element, xoffset, yoffset).click().perform()
 
-    def setChkBox(self, checked, *locator):
+    def set_check_box(self, checked, *locator):
         """checks or unchecks a checkbox"""
         element = self.driver.find_element(*locator)
-        if (element.get_attribute('checked')):  # if it's checked, only check it if checked is False
-            if checked == False:
+        if element.get_attribute('checked'):  # if it's checked, only check it if checked is False
+            if not checked:
                 element.click()
         else:  # if it's not checked, only check it if checked is True
-            if checked == True:
+            if checked:
                 element.click()
 
 
@@ -99,16 +96,22 @@ class SearchPage(BasePage):
         self.click_search_btn()
 
     def click_search_btn(self):
+        """clicks the search button"""
         self.click_object(*SearchPageLocators.search_btn)
 
-    def check_checkbox(self):
-        self.setChkBox(True, *SearchPageLocators.ray_ban_checkbox)
+    def check_rayban_checkbox(self):
+        """checks the checkbox for the Ray-Ban brand"""
+        self.set_check_box(True, *SearchPageLocators.ray_ban_checkbox)
 
     def click_result_item(self, item_no):
+        """clicks on the given item in the result list"""
         result_item = SearchPageLocators(item_no)
         self.click_object(*result_item.result_item)
 
     def convert_price_range_string(self, price_string):
+        """returns a list with the low and high prices from the given string
+            if only one price is in the string, the low and high prices are the same"""
+
         s = price_string.split("-")
 
         low_price = float(s[0].strip().replace("$ ", "").replace(" ", "."))
@@ -120,6 +123,8 @@ class SearchPage(BasePage):
         return [low_price, high_price]
 
     def compare_prices(self, price_range, minimum_price, maximum_price):
+        """returns True if the price range of the item is
+        within the minimum and maximum prices; otherwise returns False"""
         prices = self.convert_price_range_string(price_range)
         low_price = prices[0]
         high_price = prices[1]
@@ -129,12 +134,9 @@ class SearchPage(BasePage):
             return True
 
     def get_matching_items_by_price(self, minimum_price, maximum_price):
-        # TODO: put the xpath string in the locators file
-        #self.highlight(*SearchPageLocators.results_list)
-        #self.highlight(*SearchPageLocators.results_list_xpath)
-
+        """returns the number of items on the page with a price range between the given minimum and maximum prices"""
         matches = 0
-        result_elems = self.driver.find_elements_by_xpath("//*[@id='s-results-list-atf']/li")
+        result_elems = self.driver.find_elements_by_xpath("//*[@id='" + SearchPageLocators.results_list_id + "']/li")
         for i in range(0, len(result_elems)):
             price_range = self.get_item_price_range(result_elems[i])
             if self.compare_prices(price_range, minimum_price, maximum_price):
@@ -142,9 +144,12 @@ class SearchPage(BasePage):
 
         return matches
 
-
     def get_item_price_range(self, result_elem):
-            s = result_elem.text
-            lines = s.split('\n')
-            return lines[1]
+        """returns a string with the price range for an element"""
+        s = result_elem.text
+        lines = s.split('\n')
+        for line in lines:  # look for the line starting with '$ '
+            if line[0:2] == "$ ":
+                return line
+        return "$ 0 00"     # if you've gotten this far, it couldn't find pricing info.  Return string with $0.00
 
